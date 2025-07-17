@@ -12,6 +12,7 @@ class ANN:
         self.X_train = X_train
         self.weights = {}
         self.bias = {}
+        self.learningRate = 0.1
         if seed is not None:
             np.random.seed(seed)
             random.seed(seed)
@@ -34,6 +35,9 @@ class ANN:
     def activate(self,matrix):
         relu = lambda x: np.maximum(0, x)
         return relu(matrix)
+    
+    def relu_deriv(self,Z):
+        return (Z > 0).astype(float)
 
     def softmax(self, matrix):
         # subtract max for numerical stability (along axis=1 for row-wise)
@@ -56,18 +60,57 @@ class ANN:
         
         return one_hot_encoded
     
-    def cross_entropy_loss(self, y_pred):
+    def error(self, y_pred):
         y_true = self.one_hot()
-        loss = - np.sum(y_true * np.log(y_pred+1e-9))/len(y_true)
+        loss = - np.sum(y_true * np.log(y_pred+1e-9))
         return loss
     
-    def backprop(self,y_pred):
+    def cross_entropy(self):
+        pass
+
+
+    def backprop(self, y_pred, forward_vals):
         y_true = self.one_hot()
         delta = {}
-        for layer in range(-1,-1*len(self.layers)-2):
+        loss = self.error(y_pred)
+        print("loss:", loss)
+
+        delta[f"A{self.layers - 1}"] = (y_pred - y_true) / y_true.shape[0] # only works for softmax + cross entropy loss
+
+        for i in reversed(range(self.layers - 1)):
+            Z = forward_vals[f"Z{i+1}"]
+            
+            if i == self.layers - 2:
+                # final layer (softmax), already has correct delta
+                delta[f"Z{i+1}"] = delta[f"A{i+1}"]
+            else:
+                delta[f"Z{i+1}"] = delta[f"A{i+1}"] * self.relu_deriv(Z)
+            
+            delta[f"A{i}"] = np.dot(delta[f"Z{i+1}"], self.weights[f"w{i}"].T)
+            self.weights[f"w{i}"] -= self.learningRate * np.dot(forward_vals[f"A{i}"].T, delta[f"Z{i+1}"])
+            self.bias[f"b{i}"] -= self.learningRate * np.sum(delta[f"Z{i+1}"], axis=0, keepdims=True)
+                    
+    def accuracy(self, y_pred):
+        predictions = np.argmax(y_pred, axis=1)
+        labels = self.y_train
+        return np.mean(predictions == labels)
+
+    def train(self, epochs=1000):
+        for epoch in range(epochs):
+            forward_vals = self.ForwardProp()
+            y_pred = forward_vals["probabilities"]
+            self.backprop(y_pred, forward_vals)
+            if epoch % 10 == 0:
+                acc = self.accuracy(y_pred)
+                print(f"Epoch {epoch}, Loss: {self.error(y_pred):.4f}, Accuracy: {acc:.4f}")
+
+
+        
+        '''for layer in range(-1,-1*len(self.structure)-2):
             delta[layer] = []
-            for neuron in range(self.layers(layer)):
-                delta[layer].append()
+            for neuron in range(self.structure(layer)):
+                '''
+                
             
                 
 
